@@ -1,0 +1,29 @@
+{
+    "activity_log": "/path/to/activity_log.log",
+    "email": {
+        "smtp_server": "relay.example.com",
+        "smtp_port": 587,
+        "sender_email": "sender@example.com",
+        "receiver_email": "receiver@example.com",
+        "password": "your_password"
+    },
+    "logs": [
+        {
+            "type": "file",
+            "path": "/var/log/messages",
+            "filter": "*.log",
+            "days_to_keep": 30,
+            "action": "archive",
+            "archive_directory": "/path/to/archive/directory1"
+        },
+        {
+            "type": "directory",
+            "path": "/var/log/secure",
+            "filter": "*.log",
+            "days_to_keep": 10,
+            "action": "delete",
+            "archive_directory": "/path/to/archive/directory2"
+        }
+        // ... other log configurations ...
+    ]
+}
