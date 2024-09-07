@@ -40,7 +40,7 @@ This project is licensed under the MIT License.
 
 
 DEV:
-
+Snapshot VM
 ansible-playbook -i inventory/dev.inv rhel-7-8-playbook.yml
 Snapshot VM
 ansible-playbook -i inventory/dev.inv rhel-8-9-playbook.yml
@@ -49,7 +49,7 @@ ansible-playbook -i inventory/dev.inv rhel-8-9-playbook.yml
 
 
 QA:
-
+Snapshot VM
 ansible-playbook -i inventory/qa.inv rhel-7-8-playbook.yml
 Snapshot VM
 ansible-playbook -i inventory/qa.inv rhel-8-9-playbook.yml
@@ -58,7 +58,7 @@ ansible-playbook -i inventory/qa.inv rhel-8-9-playbook.yml
 
 
 PROD:
-
+Snapshot VM
 ansible-playbook -i inventory/prod.inv rhel-7-8-playbook.yml
 Snapshot VM
 ansible-playbook -i inventory/prod.inv rhel-8-9-playbook.yml
