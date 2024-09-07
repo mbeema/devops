@@ -1,0 +1,104 @@
+---
+- name: Set variables for the role
+  set_fact:
+    ansible_python_interpreter: /usr/bin/python3
+    
+- name: Remove remaining Leapp packages from the exclude list
+  lineinfile:
+    path: /etc/dnf/dnf.conf
+    regexp: '^exclude='
+    line: 'exclude='
+  notify:
+    - Run yum config-manager to clear exclude list
+
+- name: Remove remaining RHEL 7 packages
+  shell: |
+    cd /lib/modules && ls -d *.el7* || true
+  register: old_kernels
+
+- name: Remove weak modules for old kernels
+  shell: |
+    /usr/sbin/weak-modules --remove-kernel {{ item }}
+  loop: "{{ old_kernels.stdout_lines }}"
+  when: item is not none
+
+- name: Remove old kernel from bootloader entry
+  shell: |
+    /bin/kernel-install remove {{ item }} /lib/modules/{{ item }}/vmlinuz
+  loop: "{{ old_kernels.stdout_lines }}"
+  when: item is not none
+
+- name: Locate remaining RHEL 7 packages
+  shell: |
+    rpm -qa | grep -e '\.el[67]' | grep -vE '^(gpg-pubkey|libmodulemd|katello-ca-consumer)' | sort
+  register: rhel7_packages
+
+- name: Remove remaining RHEL 7 packages
+  shell: |
+    yum remove -y kernel-workaround $(rpm -qa | grep \.el7 | grep -vE 'gpg-pubkey|libmodulemd|katello-ca-consumer')
+  when: rhel7_packages.stdout != ""
+
+- name: Remove remaining Leapp dependency packages
+  shell: |
+    yum remove -y leapp-deps-el8 leapp-repository-deps-el8
+
+- name: Remove remaining empty directories
+  shell: |
+    rm -r /lib/modules/*el7*
+  ignore_errors: yes
+
+- name: Remove remaining upgrade-related data (Optional)
+  shell: |
+    rm -rf /var/log/leapp /root/tmp_leapp_py3 /var/lib/leapp
+
+#- name: Disable YUM repositories that cannot be used on RHEL 8
+#  yum_repository:
+#    name: "{{ item }}"
+#    enabled: no
+#  loop: "{{ lookup('file', '/etc/yum.repos.d/').splitlines() }}"
+
+- name: Remove existing rescue kernel and initial RAM disk
+  shell: |
+    rm /boot/vmlinuz-*rescue* /boot/initramfs-*rescue*
+
+- name: Reinstall rescue kernel and related initial RAM disk
+  shell: |
+    /usr/lib/kernel/install.d/51-dracut-rescue.install add "$(uname -r)" /boot "/boot/vmlinuz-$(uname -r)"
+
+- name: Update zipl bootloader (IBM Z architecture only)
+  shell: |
+    zipl
+  when: ansible_architecture == "s390x"
+
+- name: Change SELinux mode to enforcing
+  selinux:
+    policy: targeted
+    state: enforcing
+
+- name: Verify old kernels have been removed from bootloader entry
+  shell: |
+    grubby --info=ALL | grep "\.el7" || echo "Old kernels are not present in the bootloader."
+
+- name: Verify rescue kernel and initial RAM disk files exist
+  shell: |
+    ls /boot/vmlinuz-*rescue* /boot/initramfs-*rescue* 
+    lsinitrd /boot/initramfs-*rescue*.img | grep -qm1 "$(uname -r)/kernel/" && echo "OK" || echo "FAIL"
+
+- name: Verify rescue boot entry
+  shell: |
+    grubby --info $(ls /boot/vmlinuz-*rescue*)
+
+- name: Reboot into the latest kernel
+  shell: |
+    reboot
+  async: 1
+  poll: 0
+
+- name: Wait for server to restart
+  local_action:
+    module: wait_for
+      host={{ inventory_hostname }}
+      port=22
+      delay=60
+  become: false
+

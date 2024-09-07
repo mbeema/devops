@@ -1,0 +1,3 @@
+---
+- name: Clear exclude list with dnf config-manager
+  command: dnf config-manager --save --setopt exclude=''

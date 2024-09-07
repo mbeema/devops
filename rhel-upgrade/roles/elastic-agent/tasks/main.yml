@@ -1,0 +1,29 @@
+
+
+---
+
+- name: Create installation directory
+  file:
+    path: "/opt/elastic-agent"
+    state: directory
+
+- name: Download Elastic Agent tarball package
+  get_url:
+    url: "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-8.2.2-linux-x86_64.tar.gz"
+    dest: "/tmp/elastic-agent-8.2.2-linux-x86_64.tar.gz"
+
+- name: Extract Elastic Agent tarball
+  unarchive:
+    src: "/tmp/elastic-agent-8.2.2-linux-x86_64.tar.gz"
+    dest: "/opt/elastic-agent"
+    remote_src: true
+
+- name: Install and enroll Elastic Agent
+  command:
+    chdir: "/opt/elastic-agent/elastic-agent-8.2.2-linux-x86_64"
+    cmd: "./elastic-agent install --non-interactive --force --url=https://{{ Elastic_Fleet_Host }}:8220 --enrollment-token={{ Elastic_Token }} --insecure"
+
+- name: Restart Elastic Agent service
+  systemd:
+    name: elastic-agent
+    state: restarted

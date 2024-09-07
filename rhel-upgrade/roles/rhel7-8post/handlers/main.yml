@@ -1,0 +1,4 @@
+---
+
+- name: Run yum config-manager to clear exclude list
+  command: yum config-manager --save --setopt exclude=''

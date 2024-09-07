@@ -1,0 +1,48 @@
+---
+
+- name: include vars
+  include_vars: ../../vars/rhel-vars.yml
+
+#- name: Register system with Red Hat Subscription Manager
+#  redhat_subscription:
+#    state: present
+#    username: "{{ rhsm_username }}"3
+#    password: "{{ rhsm_password }}"
+#    auto_attach: true
+#  register: rhsm_result
+#  ignore_errors: true
+
+- name: Check if system is registered with Red Hat Subscription Manager
+  command: subscription-manager list --consumed
+  register: rhsm_status
+  changed_when: false
+
+- name: Unregister system from Red Hat Subscription Manager if already registered
+  command: subscription-manager unregister
+  ignore_errors: true
+
+- name: Clean Red Hat Subscription Manager data if already registered
+  command: subscription-manager clean
+  ignore_errors: true
+
+- name: Register system with Red Hat Subscription Manager
+  redhat_subscription:
+    state: present
+    username: "{{ rhsm_username }}"
+    password: "{{ rhsm_password }}"
+    auto_attach: true
+  register: rhsm_result
+  ignore_errors: true  
+
+- name: Display Red Hat Subscription Manager output
+  debug:
+    var: rhsm_result
+
+#- name: Update all installed packages using YUM module
+#  yum:
+#    name: '*'
+#    state: latest
+#    update_cache: yes
+#    update_only: yes
+
+

@@ -1,0 +1,18 @@
+---
+
+# Title: RHEL 8 to 9 upgrade playbook
+# Author: Madhukar Beema
+
+- hosts: all
+  remote_user: mbeema
+  become: yes
+  serial: 4
+  vars_files:
+    - vars/rhel-vars.yml 
+  roles:
+#    - role: register-subscription
+    - role: register-subscription
+    - role: rhel7-8upgrade
+    - role: rhel7-8post
+    - role: rhel8-9upgrade
+    - role: rhel8-9post

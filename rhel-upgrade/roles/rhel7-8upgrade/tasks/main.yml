@@ -1,0 +1,189 @@
+- name: Enable required RHEL 7 repositories using subscription-manager
+  shell: |
+    subscription-manager repos --enable=rhel-7-server-rpms
+    subscription-manager repos --enable=rhel-7-server-extras-rpms
+    subscription-manager repos --enable=rhel-7-server-optional-rpms
+
+- name: Update all packages to the latest RHEL 7 versions
+  yum:
+    name: "*"
+    state: latest
+
+- name: Install Leapp utility
+  yum:
+    name: leapp
+    state: present
+
+#- name: Enable RHEL 8 repositories for Leapp
+#  shell: |
+#    subscription-manager repos --enable=rhel-8-for-x86_64-baseos-rpms
+#    subscription-manager repos --enable=rhel-8-for-x86_64-appstream-rpms
+
+- name: Reboot into the latest kernel
+  shell: |
+    grub2-set-default 0
+    reboot
+  async: 1
+  poll: 0
+
+- name: Wait for server to restart
+  local_action:
+    module: wait_for
+      host={{ inventory_hostname }}
+      port=22
+      delay=60
+  become: false
+
+- name: Check current kernel version
+  shell: uname -r
+  register: current_kernel
+
+#- name: Ensure latest kernel is in use
+#  assert:
+#    that:
+#      - current_kernel.stdout == ansible_kernel
+
+- name: Check for unsigned packages
+  shell: rpm -qai | grep "not signed"
+  register: unsigned_packages_result
+  ignore_errors: yes
+  failed_when: false
+
+- name: Gather list of unsigned packages
+  set_fact:
+    unsigned_packages: "{{ unsigned_packages_result.stdout_lines | map('regex_search', '^Name\\s+\\: (.+)$') | select('string') | list }}"
+
+- name: Notify about unsigned packages
+  debug:
+    msg: "Unsigned packages found: {{ unsigned_packages }}"
+  when: unsigned_packages | length > 0
+
+- name: Remove unsupported kernel drivers
+  become: yes
+  become_method: sudo
+  command: rmmod {{ item }}
+  loop:
+    - floppy
+    - pata_acpi
+  ignore_errors: yes
+  register: rmmod_result
+
+- name: Debug removal results
+  debug:
+    msg: "Result of removing kernel module {{ item.item }}: {{ item.rc }}"
+  loop: "{{ rmmod_result.results }}"
+  when: rmmod_result is defined
+
+- name: Remove pam_pkcs11 module
+  ansible.builtin.shell: |
+    set -o pipefail
+    leapp answer --section remove_pam_pkcs11_module_check.confirm=True
+  args:
+    executable: /bin/bash
+
+- name: Copy /var/log/leapp/answerfile
+  copy:
+    src: files/answerfile
+    dest: /var/log/leapp/answerfile
+
+- name: Display the content of /var/log/leapp/answerfile
+  command: cat /var/log/leapp/answerfile
+  register: file_content
+
+- name: Print the file content
+  debug:
+    var: file_content.stdout
+
+- name: Run pre-upgrade checks
+  command: leapp preupgrade
+  register: leapp_preupgrade
+  ignore_errors: yes
+
+- name: Check pre-upgrade results
+  shell: leapp preupgrade --whitelist '*' --no-rpms
+  register: preupgrade_results
+  failed_when: "'Risk Factor: high' in preupgrade_results.stdout"
+  ignore_errors: yes
+
+- name: Halt playbook if pre-upgrade checks failed
+  fail:
+    msg: "Pre-upgrade checks failed, please review and resolve issues before continuing."
+  when: leapp_preupgrade.rc != 0
+
+- name: Perform the upgrade
+  command: leapp upgrade
+  register: leapp_upgrade
+  ignore_errors: yes
+
+
+- name: Reboot system to complete the upgrade
+  reboot:
+    reboot_timeout: 600
+  when: leapp_upgrade.rc == 0
+
+- name: Wait for server to restart
+  local_action:
+    module: wait_for
+    host: "{{ inventory_hostname }}"
+    port: 22
+    delay: 60
+  become: false
+
+
+- name: Verify RHEL 8 upgrade
+  shell: cat /etc/redhat-release
+  register: os_release
+  until: os_release is succeeded
+  retries: 20
+  delay: 30
+  vars:
+    ansible_python_interpreter: /usr/bin/python2
+
+
+
+
+- name: Ensure system is now running RHEL 8
+  assert:
+    that:
+      - "'Red Hat Enterprise Linux release 8' in os_release.stdout"
+    fail_msg: "The upgrade to RHEL 8 failed."
+  vars:
+    ansible_python_interpreter: /usr/bin/python2
+
+
+
+#- name: Force remove python2-leapp if present
+#  command: rpm -e --nodeps python2-leapp
+#  ignore_errors: yes
+
+#- name: Uninstall leapp-upgrade-el7toel8 if present
+#  yum:
+#    name: leapp-upgrade-el7toel8
+#    state: absent
+#  ignore_errors: yes
+
+#- name: Force remove leapp-upgrade-el7toel8 if present
+#  command: rpm -e --nodeps leapp-upgrade-el7toel8
+#  ignore_errors: yes
+
+
+#- name: Uninstall leapp if present
+#  yum:
+#    name: leapp*
+#    state: absent
+#  ignore_errors: yes
+
+#- name: Uninstall python2-leapp if present
+#  yum:
+#    name: python2-leapp
+#    state: absent
+#  ignore_errors: yes
+
+#- name: Force remove python2-leapp if present
+#  command: rpm -e --nodeps python2-leapp
+#  ignore_errors: yes
+
+#- name: Install Python 3 using raw module
+#  raw: yum install -y python3
+
+

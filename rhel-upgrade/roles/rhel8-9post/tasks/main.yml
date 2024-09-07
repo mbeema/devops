@@ -1,0 +1,96 @@
+---
+- name: Set variables for the role
+  set_fact:
+    ansible_python_interpreter: /usr/bin/python3
+#    python_package: python3
+
+- name: Remove remaining Leapp packages from the exclude list
+  lineinfile:
+    path: /etc/dnf/dnf.conf
+    regexp: '^exclude='
+    line: 'exclude='
+  notify:
+    - Clear exclude list with dnf config-manager
+
+- name: Remove remaining RHEL 8 packages
+  shell: |
+    rpm -qa | grep -e '\.el[78]' | grep -vE '^(gpg-pubkey|libmodulemd|katello-ca-consumer)' | sort
+  register: rhel8_packages
+
+- name: Remove RHEL 8 packages using DNF
+  shell: |
+    dnf remove -y $(rpm -qa | grep \.el[78] | grep -vE 'gpg-pubkey|libmodulemd|katello-ca-consumer')
+  when: rhel8_packages.stdout != ""
+
+- name: Remove remaining Leapp dependency packages
+  shell: |
+    dnf remove -y leapp-deps-el9 leapp-repository-deps-el9
+
+- name: Remove remaining upgrade-related data
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /var/log/leapp
+    - /root/tmp_leapp_py3
+    - /var/lib/leapp
+
+#- name: Disable incompatible DNF repositories
+#  shell: |
+#    dnf config-manager --set-disabled "{{ item }}"
+#  with_items:
+#    - repo_id_1
+#    - repo_id_2
+  # Replace repo_id_1, repo_id_2 with actual repository IDs
+
+- name: Set current kernel command line arguments to new default
+  shell: |
+    BOOT_OPTIONS="$(tr -s "$IFS" '\n' </proc/cmdline | grep -ve '^BOOT_IMAGE=' -e '^initrd=' | tr '\n' ' ')"
+    echo $BOOT_OPTIONS > /etc/kernel/cmdline
+
+#- name: Remove existing rescue kernel and initial RAM disk
+#  file:
+#    path: /boot/
+#    state: absent
+#    pattern: '*rescue*'
+
+
+#- name: Reinstall rescue kernel and related initial RAM disk
+#  shell: |
+#    /usr/lib/kernel/install.d/51-dracut-rescue.install add "$(uname -r)" /boot "/boot/vmlinuz-$(uname -r)"
+
+- name: Update zipl bootloader (IBM Z architecture only)
+  shell: |
+    zipl
+  when: ansible_architecture == "s390x"
+
+#- name: Change SELinux mode to enforcing
+#  selinux:
+#    policy: targeted
+#    state: enforcing
+
+#- name: Verify rescue kernel and initial RAM disk files created
+#  shell: |
+#    ls /boot/vmlinuz-*rescue* /boot/initramfs-*rescue* 
+#    lsinitrd /boot/initramfs-*rescue*.img | grep -qm1 "$(uname -r)/kernel/" && echo "OK" || echo "FAIL"
+#  register: rescue_kernel_verification
+
+#- name: Verify rescue boot entry refers to existing rescue files
+#  shell: |
+#    grubby --info $(ls /boot/vmlinuz-*rescue*)
+#  register: rescue_boot_verification
+
+- name: Reboot system to complete the upgrade
+  reboot:
+    reboot_timeout: 600
+#  when: leapp_upgrade.rc == 0
+
+- name: Wait for server to restart
+  local_action:
+    module: wait_for
+    host: "{{ inventory_hostname }}"
+    port: 22
+    delay: 60
+  become: false
+
+

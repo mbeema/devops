@@ -1,0 +1,14 @@
+[vertex-app]
+tpcqvtxapp01 ansible_host=tpcqvtxapp01 ansible_user=mbeema ansible_ssh_timeout=60
+tpcqvtxapp02 ansible_host=tpcqvtxapp02 ansible_user=mbeema ansible_ssh_timeout=60
+
+[vertex-admin]
+tpcqvtxadm01 ansible_host=tpcqvtxadm01 ansible_user=mbeema ansible_ssh_timeout=60
+
+
+[vertex-app:vars]
+keep_wars='["oseries-auth.war","vertex-ws.war"]'
+
+
+[vertex-admin:vars]
+keep_wars='["oseries-auth.war","oseries-ui-service.war","oseries-ui.war","ui.war","oseries-help.war","vertex-remote-services.war"]'
