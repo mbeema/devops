@@ -1,6 +1,2 @@
-[vertex-app]
-tpcdvertex01 ansible_host=tpcdvertex01 ansible_user=mbeema ansible_ssh_timeout=60
-
-
-[vertex-app:vars]
-keep_wars='["oseries-auth.war","oseries-ui-service.war","oseries-ui.war","ui.war","vertex-remote-services.war","vertex-ws.war"]'
+[rhel]
+devhost 
